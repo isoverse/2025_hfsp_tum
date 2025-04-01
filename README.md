@@ -8,4 +8,4 @@ The quickest and easiest way is to use RStudio.
  1. Navigate to the directory and double-click the `project.Rproj` file to start RStudio and load this project.
  1. Install the required libraries used by this app by running the following command in the Console in RStudio: `install.packages(c("devtools", "tidyverse", "isoorbi"))` or by installing them manually in RStudio's Packages manager
  1. Install the latest development version of `isoorbi` by running `devtools::install_github("isoverse/isoorbi", "dev-v1.4")`
- 1. Double-click on `template.qmd` to open an empty notebook
+ 1. Double-click on `notebook.qmd` to open an empty notebook
