@@ -1,0 +1,224 @@
+---
+title: "TITLE"
+subtitle: "SUBTITLE"
+author: "AUTHOR"
+date: "`r format(Sys.Date(), '%d %b %Y')`"
+number-sections: true
+number-offset: 0
+toc: true
+toc-depth: 2
+fig-width: 6
+fig-height: 4
+df-print: tibble
+embed-resources: true
+format: 
+  # html file
+  # word file
+  html: 
+    code-tools: true
+    code-fold: show
+    code-summary: "Show the code"
+    toc-float: true
+  docx: 
+    toc-title: "Table of contents"
+    fig-dpi: 600
+    execute:
+      echo: false
+knitr: 
+  opts_chunk: 
+    fig.path: "plots/"
+    fig.keep: "all"
+    dev: ['png', 'pdf']
+    dev.args: 
+      pdf: 
+        encoding: 'WinAnsi'
+        useDingbats: false
+crossref:
+  fig-prefix: Fig.
+  tbl-prefix: Table
+  ref-hyperlink: true
+editor: source
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Setup
+
+Using `r R.version.string` and isoorbi `r packageVersion("isoorbi")`.
+
+```{r}
+#| label: setup
+#| message: false
+
+# load packages
+library(tidyverse)
+library(readxl)
+library(isoorbi)
+```
+
+# Load data
+
+## Read raw file
+
+```{r}
+#| label: read-raw
+#| cache: true
+# find files 
+raw_files <- orbi_find_raw("data/my_sequence")
+
+# read files
+read_files <- orbi_read_raw(raw_files)
+```
+
+## Aggregate data
+
+```{r}
+# aggregate data
+agg_files <- read_files |> orbi_aggregate_raw()
+```
+
+## File info
+
+```{r}
+file_info <- agg_files |> orbi_get_data(file_info = everything())
+```
+
+
+# Intensity vs m/z
+
+## Data
+
+```{r}
+# pull out raw trace
+raw_trace <- agg_files |>
+  orbi_get_data(raw_data = everything()) |>
+  mutate(cardinal = round(mz)) |>
+  filter(scan == 10, cardinal %in% c(62, 63, 64))
+```
+
+## Plot
+  
+```{r}
+#| label: fig-intensity-vs-mz
+# plot trace
+raw_trace |>
+  ggplot() +
+  aes(mz, intensity, color = uid) +
+  geom_line() +
+  facet_wrap(~cardinal, scales = "free") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+# Isotopocules
+
+## Fetch peaks
+
+```{r}
+# pull out the peaks
+peaks <- 
+  agg_files |>
+  orbi_get_data(
+    file_info = c("uid", "filepath" = "file_path"),
+    scans = c("uid", "scan", "time.min", "tic", "it.ms", "resolution", "microscans"),
+    peaks = everything()
+  ) |>
+  rename("filename" = "uid", "scan.no" = "scan")
+```
+
+## Match peaks
+
+```{r}
+# identify isotopocules of interest
+isotopocules <- read_excel("data/my_sequence/isotopocules.xlsx")
+isotopocules
+
+peaks_w_isotopocules <- peaks |>
+  cross_join(isotopocules) |>
+  filter(abs(mass - mzMeasured) < tolerance) |>
+  # calculate ions incremental
+  mutate(
+    ions.incremental = intensity / peakNoise * 3.0 / charge *
+      sqrt(240000 / resolution) * sqrt(microscans),
+    .after = "intensity"
+  )
+```
+
+## Add metadata
+
+```{r}
+metadata <- read_excel("data/my_sequence/metadata.xlsx")
+
+peaks_w_metadata <- peaks_w_isotopocules |>
+  left_join(metadata, by = "filename")
+```
+
+# Process
+
+## Checks
+
+```{r}
+data_checked <- peaks_w_metadata |>
+  orbi_flag_satellite_peaks() |>
+  orbi_flag_weak_isotopocules(min_percent = 10) |>
+  orbi_flag_outliers(agc_fold_cutoff = 2) 
+```
+
+```{r}
+#| label: fig-tic-it.ms
+data_checked |> orbi_plot_raw_data(x = "scan.no", y = tic * it.ms, isotopocules = c("M0"))
+```
+
+## Block definitions
+
+```{r}
+data_w_blocks <- data_checked |>
+  orbi_define_block_for_flow_injection(start_scan.no = 5, end_scan.no = 90)
+```
+
+## Coverage
+
+```{r}
+#| label: fig-coverage
+data_w_blocks |> orbi_plot_isotopocule_coverage()
+```
+
+## Base peak
+
+```{r}
+# sets one isotopocule in the data frame as the base peak (ratio denominator)
+data_w_bp <- data_w_blocks |> orbi_define_basepeak("M0") 
+```
+
+
+```{r}
+#| label: fig-ratios
+data_w_bp |> orbi_plot_raw_data(y = ratio)
+```
+
+# Calculations
+
+## Shot noise
+
+```{r}
+#| label: fig-shot-noise
+# calculate shot noise
+shot_noise <-
+  data_w_bp |>
+  orbi_analyze_shot_noise()
+
+shot_noise |> orbi_plot_shot_noise()
+```
+
+
+
+## Ratios
+
+```{r}
+ratios <- 
+  data_w_bp |>
+  orbi_summarize_results(ratio_method = "sum") 
+
+ratios
+```
+

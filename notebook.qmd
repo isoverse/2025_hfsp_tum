@@ -1,0 +1,58 @@
+---
+title: "TITLE"
+subtitle: "SUBTITLE"
+author: "AUTHOR"
+date: "`r format(Sys.Date(), '%d %b %Y')`"
+number-sections: true
+number-offset: 0
+toc: true
+toc-depth: 2
+fig-width: 6
+fig-height: 4
+df-print: tibble
+embed-resources: true
+format: 
+  # html file
+  # word file
+  html: 
+    code-tools: true
+    code-fold: show
+    code-summary: "Show the code"
+    toc-float: true
+  docx: 
+    toc-title: "Table of contents"
+    fig-dpi: 600
+    execute:
+      echo: false
+knitr: 
+  opts_chunk: 
+    fig.path: "plots/"
+    fig.keep: "all"
+    dev: ['png', 'pdf']
+    dev.args: 
+      pdf: 
+        encoding: 'WinAnsi'
+        useDingbats: false
+crossref:
+  fig-prefix: Fig.
+  tbl-prefix: Table
+  ref-hyperlink: true
+editor: source
+editor_options: 
+  chunk_output_type: inline
+---
+
+# Setup
+
+Using `r R.version.string` and isoorbi `r packageVersion("isoorbi")`.
+
+```{r}
+#| label: setup
+#| message: false
+
+# load packages
+library(tidyverse)
+library(readxl)
+library(isoorbi)
+```
+
